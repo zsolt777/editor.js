@@ -24,6 +24,7 @@ export default class SelectionAPI extends Module {
    *
    * @param {string} tagName - tag to find
    * @param {string} className - tag's class name
+   *
    * @returns {HTMLElement|null}
    */
   public findParentTag(tagName: string, className?: string): HTMLElement | null {

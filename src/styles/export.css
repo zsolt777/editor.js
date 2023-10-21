@@ -2,11 +2,7 @@
  * Block Tool wrapper
  */
 .cdx-block {
-  padding: var(--block-padding-vertical) 0;
-
-  &::-webkit-input-placeholder {
-    line-height:normal!important;
-  }
+  padding: 0.4em 0;
 }
 
 /**
@@ -36,26 +32,20 @@
 
 /**
  * Settings
- * @deprecated - use tunes config instead of creating html element with controls
  */
 .cdx-settings-button {
   @apply --toolbar-button;
-  min-width: var(--toolbox-buttons-size);
-  min-height: var(--toolbox-buttons-size);
+
+  &:not(:nth-child(3n+3)) {
+    margin-right: 3px;
+  }
+
+  &:nth-child(n+4) {
+    margin-top: 3px;
+  }
 
   &--active {
     color: var(--color-active-icon);
-  }
-
-  svg {
-    width: auto;
-    height: auto;
-  }
-
-  @media (--mobile) {
-    width: var(--toolbox-buttons-size--mobile);
-    height: var(--toolbox-buttons-size--mobile);
-    border-radius: 8px;
   }
 }
 
@@ -104,11 +94,9 @@
   text-align: center;
   cursor: pointer;
 
-  @media (--can-hover) {
-    &:hover {
-      background: #FBFCFE;
-      box-shadow: 0 1px 3px 0 rgba(18,30,57,0.08);
-    }
+  &:hover {
+    background: #FBFCFE;
+    box-shadow: 0 1px 3px 0 rgba(18,30,57,0.08);
   }
 
   svg {

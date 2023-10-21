@@ -1,8 +1,9 @@
 import SelectionUtils from '../selection';
+
+import $ from '../dom';
 import * as _ from '../utils';
-import { InlineTool, SanitizerConfig, API } from '../../../types';
-import { Notifier, Toolbar, I18n, InlineToolbar } from '../../../types/api';
-import { IconLink, IconUnlink } from '@codexteam/icons';
+import { InlineTool, SanitizerConfig } from '../../../types';
+import { Notifier, Toolbar, I18n } from '../../../types/api';
 
 /**
  * Link Tool
@@ -70,9 +71,9 @@ export default class LinkInlineTool implements InlineTool {
     button: HTMLButtonElement;
     input: HTMLInputElement;
   } = {
-      button: null,
-      input: null,
-    };
+    button: null,
+    input: null,
+  };
 
   /**
    * SelectionUtils instance
@@ -92,7 +93,7 @@ export default class LinkInlineTool implements InlineTool {
   /**
    * Available inline toolbar methods (open/close)
    */
-  private inlineToolbar: InlineToolbar;
+  private inlineToolbar: Toolbar;
 
   /**
    * Notifier API methods
@@ -105,9 +106,9 @@ export default class LinkInlineTool implements InlineTool {
   private i18n: I18n;
 
   /**
-   * @param api - Editor.js API
+   * @param {API} api - Editor.js API
    */
-  constructor({ api }: { api: API }) {
+  constructor({ api }) {
     this.toolbar = api.toolbar;
     this.inlineToolbar = api.inlineToolbar;
     this.notifier = api.notifier;
@@ -122,8 +123,8 @@ export default class LinkInlineTool implements InlineTool {
     this.nodes.button = document.createElement('button') as HTMLButtonElement;
     this.nodes.button.type = 'button';
     this.nodes.button.classList.add(this.CSS.button, this.CSS.buttonModifier);
-
-    this.nodes.button.innerHTML = IconLink;
+    this.nodes.button.appendChild($.svg('link', 14, 10));
+    this.nodes.button.appendChild($.svg('unlink', 15, 11));
 
     return this.nodes.button;
   }
@@ -186,12 +187,13 @@ export default class LinkInlineTool implements InlineTool {
 
   /**
    * Check selection and set activated state to button if there are <a> tag
+   *
+   * @param {Selection} selection - selection to check
    */
-  public checkState(): boolean {
+  public checkState(selection?: Selection): boolean {
     const anchorTag = this.selection.findParentTag('A');
 
     if (anchorTag) {
-      this.nodes.button.innerHTML = IconUnlink;
       this.nodes.button.classList.add(this.CSS.buttonUnlink);
       this.nodes.button.classList.add(this.CSS.buttonActive);
       this.openActions();
@@ -205,7 +207,6 @@ export default class LinkInlineTool implements InlineTool {
 
       this.selection.save();
     } else {
-      this.nodes.button.innerHTML = IconLink;
       this.nodes.button.classList.remove(this.CSS.buttonUnlink);
       this.nodes.button.classList.remove(this.CSS.buttonActive);
     }

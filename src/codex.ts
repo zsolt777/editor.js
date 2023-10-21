@@ -7,19 +7,21 @@ import { EditorConfig } from '../types';
  */
 import '@babel/register';
 
-import './components/polyfills';
+import 'components/polyfills';
 import Core from './components/core';
 import * as _ from './components/utils';
-import { destroy as destroyTooltip } from './components/utils/tooltip';
 
 declare const VERSION: string;
 
 /**
  * Editor.js
  *
+ * Short Description (눈_눈;)
+ *
+ * @version 2.18.0
+ *
  * @license Apache-2.0
- * @see Editor.js <https://editorjs.io>
- * @author CodeX Team <https://codex.so>
+ * @author CodeX-Team <https://ifmo.su>
  */
 export default class EditorJS {
   /**
@@ -68,9 +70,6 @@ export default class EditorJS {
      */
     this.isReady = editor.isReady.then(() => {
       this.exportAPI(editor);
-      /**
-       * @todo pass API as an argument. It will allow to use Editor's API when editor is ready
-       */
       onReady();
     });
   }
@@ -90,8 +89,6 @@ export default class EditorJS {
           }
           moduleInstance.listeners.removeAll();
         });
-
-      destroyTooltip();
 
       editor = null;
 

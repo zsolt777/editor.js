@@ -4,9 +4,7 @@ import {
   BlockToolData,
   BlockTune as IBlockTune,
   SanitizerConfig,
-  ToolConfig,
-  ToolboxConfigEntry,
-  PopoverItem
+  ToolConfig
 } from '../../../types';
 
 import { SavedData } from '../../../types/data-formats';
@@ -21,11 +19,6 @@ import BlockTune from '../tools/tune';
 import { BlockTuneData } from '../../../types/block-tunes/block-tune-data';
 import ToolsCollection from '../tools/collection';
 import EventsDispatcher from '../utils/events';
-import { TunesMenuConfigItem } from '../../../types/tools';
-import { isMutationBelongsToElement } from '../utils/mutations';
-import { EditorEventMap, FakeCursorAboutToBeToggled, FakeCursorHaveBeenSet, RedactorDomChanged } from '../events';
-import { RedactorDomChangedPayload } from '../events/RedactorDomChanged';
-import { convertBlockDataToString } from '../utils/blocks';
 
 /**
  * Interface describes Block class constructor argument
@@ -59,14 +52,16 @@ interface BlockConstructorOptions {
   /**
    * Tunes data for current Block
    */
-  tunesData: { [name: string]: BlockTuneData };
+  tunesData: {[name: string]: BlockTuneData};
 }
 
 /**
  * @class Block
  * @classdesc This class describes editor`s block, including block`s HTMLElement, data and tool
+ *
  * @property {BlockTool} tool — current block tool (Paragraph, for example)
  * @property {object} CSS — block`s css classes
+ *
  */
 
 /**
@@ -77,25 +72,22 @@ export enum BlockToolAPI {
    * @todo remove method in 3.0.0
    * @deprecated — use 'rendered' hook instead
    */
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   APPEND_CALLBACK = 'appendCallback',
   RENDERED = 'rendered',
   MOVED = 'moved',
   UPDATED = 'updated',
   REMOVED = 'removed',
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   ON_PASTE = 'onPaste',
 }
 
 /**
- * Names of events used in Block
+ * Names of events supported by Block class
  */
-interface BlockEvents {
-  'didMutated': Block,
-}
+type BlockEvents = 'didMutated';
 
 /**
  * @classdesc Abstract Block class that contains Block information, Tool name and Tool class instance
+ *
  * @property {BlockTool} tool - Tool instance
  * @property {HTMLElement} holder - Div element that wraps block content with Tool's content. Has `ce-block` CSS class
  * @property {HTMLElement} pluginsContent - HTML content that returns by Tool's render function
@@ -106,7 +98,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    *
    * @returns {{wrapper: string, content: string}}
    */
-  public static get CSS(): { [name: string]: string } {
+  public static get CSS(): {[name: string]: string} {
     return {
       wrapper: 'ce-block',
       wrapperStretched: 'ce-block--stretched',
@@ -160,11 +152,6 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   private cachedInputs: HTMLElement[] = [];
 
   /**
-   * We'll store a reference to the tool's rendered element to access it later
-   */
-  private toolRenderedElement: HTMLElement | null = null;
-
-  /**
    * Tool class instance
    */
   private readonly toolInstance: IBlockTool;
@@ -183,7 +170,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    * If there is saved data for Tune which is not available at the moment,
    * we will store it here and provide back on save so data is not lost
    */
-  private unavailableTunesData: { [name: string]: BlockTuneData } = {};
+  private unavailableTunesData: {[name: string]: BlockTuneData} = {};
 
   /**
    * Editor`s API module
@@ -198,14 +185,49 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   private inputIndex = 0;
 
   /**
-   * Common editor event bus
+   * Mutation observer to handle DOM mutations
+   *
+   * @type {MutationObserver}
    */
-  private readonly editorEventBus: EventsDispatcher<EditorEventMap> | null = null;
+  private mutationObserver: MutationObserver;
 
   /**
-   * Link to editor dom change callback. Used to remove listener on remove
+   * Debounce Timer
+   *
+   * @type {number}
    */
-  private redactorDomChangedCallback: (payload: RedactorDomChangedPayload) => void;
+  private readonly modificationDebounceTimer = 450;
+
+  /**
+   * Is fired when DOM mutation has been happened
+   */
+  private didMutated = _.debounce((mutations: MutationRecord[]): void => {
+    const shouldFireUpdate = !mutations.some(({ addedNodes = [], removedNodes }) => {
+      return [...Array.from(addedNodes), ...Array.from(removedNodes)]
+        .some(node => $.isElement(node) && (node as HTMLElement).dataset.mutationFree === 'true');
+    });
+
+    /**
+     * In case some mutation free elements are added or removed, do not trigger didMutated event
+     */
+    if (!shouldFireUpdate) {
+      return;
+    }
+
+    /**
+     * Drop cache
+     */
+    this.cachedInputs = [];
+
+    /**
+     * Update current input
+     */
+    this.updateCurrentInput();
+
+    this.call(BlockToolAPI.UPDATED);
+
+    this.emit('didMutated', this);
+  }, this.modificationDebounceTimer);
 
   /**
    * Current block API interface
@@ -213,13 +235,12 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   private readonly blockAPI: BlockAPIInterface;
 
   /**
-   * @param options - block constructor options
-   * @param [options.id] - block's id. Will be generated if omitted.
-   * @param options.data - Tool's initial data
-   * @param options.tool — block's tool
+   * @param {object} options - block constructor options
+   * @param {string} [options.id] - block's id. Will be generated if omitted.
+   * @param {BlockToolData} options.data - Tool's initial data
+   * @param {BlockToolConstructable} options.tool — block's tool
    * @param options.api - Editor API module for pass it to the Block Tunes
-   * @param options.readOnly - Read-Only flag
-   * @param [eventBus] - Editor common event bus. Allows to subscribe on some Editor events. Could be omitted when "virtual" Block is created. See BlocksAPI@composeBlockData.
+   * @param {boolean} options.readOnly - Read-Only flag
    */
   constructor({
     id = _.generateBlockId(),
@@ -228,7 +249,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
     api,
     readOnly,
     tunesData,
-  }: BlockConstructorOptions, eventBus?: EventsDispatcher<EditorEventMap>) {
+  }: BlockConstructorOptions) {
     super();
 
     this.name = tool.name;
@@ -236,8 +257,9 @@ export default class Block extends EventsDispatcher<BlockEvents> {
     this.settings = tool.settings;
     this.config = tool.settings.config || {};
     this.api = api;
-    this.editorEventBus = eventBus || null;
     this.blockAPI = new BlockAPI(this);
+
+    this.mutationObserver = new MutationObserver(this.didMutated);
 
     this.tool = tool;
     this.toolInstance = tool.create(data, this.blockAPI, readOnly);
@@ -250,26 +272,10 @@ export default class Block extends EventsDispatcher<BlockEvents> {
     this.composeTunes(tunesData);
 
     this.holder = this.compose();
-
-    /**
-     * Bind block events in RIC for optimizing of constructing process time
-     */
-    window.requestIdleCallback(() => {
-      /**
-       * Start watching block mutations
-       */
-      this.watchBlockMutations();
-
-      /**
-       * Mutation observer doesn't track changes in "<input>" and "<textarea>"
-       * so we need to track focus events to update current input and clear cache.
-       */
-      this.addInputEvents();
-    });
   }
 
   /**
-   * Find and return all editable elements (contenteditable and native inputs) in the Tool HTML
+   * Find and return all editable elements (contenteditables and native inputs) in the Tool HTML
    *
    * @returns {HTMLElement[]}
    */
@@ -384,7 +390,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
 
   /**
    * is block mergeable
-   * We plugin have merge function then we call it mergeable
+   * We plugin have merge function then we call it mergable
    *
    * @returns {boolean}
    */
@@ -405,7 +411,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   }
 
   /**
-   * Check if block has a media content such as images, iframe and other
+   * Check if block has a media content such as images, iframes and other
    *
    * @returns {boolean}
    */
@@ -452,21 +458,14 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    * @param {boolean} state - 'true' to select, 'false' to remove selection
    */
   public set selected(state: boolean) {
-    this.holder.classList.toggle(Block.CSS.selected, state);
+    if (state) {
+      this.holder.classList.add(Block.CSS.selected);
 
-    const fakeCursorWillBeAdded = state === true && SelectionUtils.isRangeInsideContainer(this.holder);
-    const fakeCursorWillBeRemoved = state === false && SelectionUtils.isFakeCursorInsideContainer(this.holder);
+      SelectionUtils.addFakeCursor(this.holder);
+    } else {
+      this.holder.classList.remove(Block.CSS.selected);
 
-    if (fakeCursorWillBeAdded || fakeCursorWillBeRemoved) {
-      this.editorEventBus?.emit(FakeCursorAboutToBeToggled, { state }); // mutex
-
-      if (fakeCursorWillBeAdded) {
-        SelectionUtils.addFakeCursor();
-      } else {
-        SelectionUtils.removeFakeCursor(this.holder);
-      }
-
-      this.editorEventBus?.emit(FakeCursorHaveBeenSet, { state });
+      SelectionUtils.removeFakeCursor(this.holder);
     }
   }
 
@@ -482,7 +481,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   /**
    * Set stretched state
    *
-   * @param {boolean} state - 'true' to enable, 'false' to disable stretched state
+   * @param {boolean} state - 'true' to enable, 'false' to disable stretched statte
    */
   public set stretched(state: boolean) {
     this.holder.classList.toggle(Block.CSS.wrapperStretched, state);
@@ -512,7 +511,23 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    * @returns {HTMLElement}
    */
   public get pluginsContent(): HTMLElement {
-    return this.toolRenderedElement;
+    const blockContentNodes = this.holder.querySelector(`.${Block.CSS.content}`);
+
+    if (blockContentNodes && blockContentNodes.childNodes.length) {
+      /**
+       * Editors Block content can contain different Nodes from extensions
+       * We use DOM isExtensionNode to ignore such Nodes and return first Block that does not match filtering list
+       */
+      for (let child = blockContentNodes.childNodes.length - 1; child >= 0; child--) {
+        const contentNode = blockContentNodes.childNodes[child];
+
+        if (!$.isExtensionNode(contentNode)) {
+          return contentNode as HTMLElement;
+        }
+      }
+    }
+
+    return null;
   }
 
   /**
@@ -560,9 +575,9 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    *
    * @returns {object}
    */
-  public async save(): Promise<void | SavedData> {
+  public async save(): Promise<void|SavedData> {
     const extractedBlock = await this.toolInstance.save(this.pluginsContent as HTMLElement);
-    const tunesData: { [name: string]: BlockTuneData } = this.unavailableTunesData;
+    const tunesData: {[name: string]: BlockTuneData} = this.unavailableTunesData;
 
     [
       ...this.tunesInstances.entries(),
@@ -598,7 +613,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
         };
       })
       .catch((error) => {
-        _.log(`Saving process for ${this.name} tool failed due to the ${error}`, 'log', 'red');
+        _.log(`Saving proccess for ${this.name} tool failed due to the ${error}`, 'log', 'red');
       });
   }
 
@@ -607,6 +622,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    * Tool's validation method is optional
    *
    * @description Method returns true|false whether data passed the validation or not
+   *
    * @param {BlockToolData} data - data to validate
    * @returns {Promise<boolean>} valid
    */
@@ -621,33 +637,22 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   }
 
   /**
-   * Returns data to render in tunes menu.
-   * Splits block tunes settings into 2 groups: popover items and custom html.
+   * Enumerates initialized tunes and returns fragment that can be appended to the toolbars area
+   *
+   * @returns {DocumentFragment[]}
    */
-  public getTunes(): [PopoverItem[], HTMLElement] {
-    const customHtmlTunesContainer = document.createElement('div');
-    const tunesItems: TunesMenuConfigItem[] = [];
+  public renderTunes(): [DocumentFragment, DocumentFragment] {
+    const tunesElement = document.createDocumentFragment();
+    const defaultTunesElement = document.createDocumentFragment();
 
-    /** Tool's tunes: may be defined as return value of optional renderSettings method */
-    const tunesDefinedInTool = typeof this.toolInstance.renderSettings === 'function' ? this.toolInstance.renderSettings() : [];
-
-    /** Common tunes: combination of default tunes (move up, move down, delete) and third-party tunes connected via tunes api */
-    const commonTunes = [
-      ...this.tunesInstances.values(),
-      ...this.defaultTunesInstances.values(),
-    ].map(tuneInstance => tuneInstance.render());
-
-    [tunesDefinedInTool, commonTunes].flat().forEach(rendered => {
-      if ($.isElement(rendered)) {
-        customHtmlTunesContainer.appendChild(rendered);
-      } else if (Array.isArray(rendered)) {
-        tunesItems.push(...rendered);
-      } else {
-        tunesItems.push(rendered);
-      }
+    this.tunesInstances.forEach((tune) => {
+      $.append(tunesElement, tune.render());
+    });
+    this.defaultTunesInstances.forEach((tune) => {
+      $.append(defaultTunesElement, tune.render());
     });
 
-    return [tunesItems, customHtmlTunesContainer];
+    return [tunesElement, defaultTunesElement];
   }
 
   /**
@@ -666,20 +671,41 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   }
 
   /**
-   * Allows to say Editor that Block was changed. Used to manually trigger Editor's 'onChange' callback
-   * Can be useful for block changes invisible for editor core.
+   * Is fired when Block will be selected as current
    */
-  public dispatchChange(): void {
-    this.didMutated();
+  public willSelect(): void {
+    /**
+     * Observe DOM mutations to update Block inputs
+     */
+    this.mutationObserver.observe(
+      this.holder.firstElementChild,
+      {
+        childList: true,
+        subtree: true,
+        characterData: true,
+        attributes: true,
+      }
+    );
+
+    /**
+     * Mutation observer doesn't track changes in "<input>" and "<textarea>"
+     * so we need to track focus events to update current input and clear cache.
+     */
+    this.addInputEvents();
+  }
+
+  /**
+   * Is fired when Block will be unselected
+   */
+  public willUnselect(): void {
+    this.mutationObserver.disconnect();
+    this.removeInputEvents();
   }
 
   /**
    * Call Tool instance destroy method
    */
   public destroy(): void {
-    this.unwatchBlockMutations();
-    this.removeInputEvents();
-
     super.destroy();
 
     if (_.isFunction(this.toolInstance.destroy)) {
@@ -688,54 +714,12 @@ export default class Block extends EventsDispatcher<BlockEvents> {
   }
 
   /**
-   * Tool could specify several entries to be displayed at the Toolbox (for example, "Heading 1", "Heading 2", "Heading 3")
-   * This method returns the entry that is related to the Block (depended on the Block data)
+   * Call Tool instance renderSettings method
    */
-  public async getActiveToolboxEntry(): Promise<ToolboxConfigEntry | undefined> {
-    const toolboxSettings = this.tool.toolbox;
-
-    /**
-     * If Tool specifies just the single entry, treat it like an active
-     */
-    if (toolboxSettings.length === 1) {
-      return Promise.resolve(this.tool.toolbox[0]);
+  public renderSettings(): HTMLElement | undefined {
+    if (_.isFunction(this.toolInstance.renderSettings)) {
+      return this.toolInstance.renderSettings();
     }
-
-    /**
-     * If we have several entries with their own data overrides,
-     * find those who matches some current data property
-     *
-     * Example:
-     *  Tools' toolbox: [
-     *    {title: "Heading 1", data: {level: 1} },
-     *    {title: "Heading 2", data: {level: 2} }
-     *  ]
-     *
-     *  the Block data: {
-     *    text: "Heading text",
-     *    level: 2
-     *  }
-     *
-     *  that means that for the current block, the second toolbox item (matched by "{level: 2}") is active
-     */
-    const blockData = await this.data;
-    const toolboxItems = toolboxSettings;
-
-    return toolboxItems.find((item) => {
-      return Object.entries(item.data)
-        .some(([propName, propValue]) => {
-          return blockData[propName] && _.equals(blockData[propName], propValue);
-        });
-    });
-  }
-
-  /**
-   * Exports Block data as string using conversion config
-   */
-  public async exportDataAsString(): Promise<string> {
-    const blockData = await this.data;
-
-    return convertBlockDataToString(blockData, this.tool.conversionConfig);
   }
 
   /**
@@ -748,18 +732,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
         contentNode = $.make('div', Block.CSS.content),
         pluginsContent = this.toolInstance.render();
 
-    /**
-     * Export id to the DOM three
-     * Useful for standalone modules development. For example, allows to identify Block by some child node. Or scroll to a particular Block by id.
-     */
-    wrapper.dataset.id = this.id;
-
-    /**
-     * Saving a reference to plugin's content element for guaranteed accessing it later
-     */
-    this.toolRenderedElement = pluginsContent;
-
-    contentNode.appendChild(this.toolRenderedElement);
+    contentNode.appendChild(pluginsContent);
 
     /**
      * Block Tunes might wrap Block's content node to provide any UI changes
@@ -794,7 +767,7 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    * @param tunesData - current Block tunes data
    * @private
    */
-  private composeTunes(tunesData: { [name: string]: BlockTuneData }): void {
+  private composeTunes(tunesData: {[name: string]: BlockTuneData}): void {
     Array.from(this.tunes.values()).forEach((tune) => {
       const collection = tune.isInternal ? this.defaultTunesInstances : this.tunesInstances;
 
@@ -816,18 +789,18 @@ export default class Block extends EventsDispatcher<BlockEvents> {
    */
   private handleFocus = (): void => {
     /**
-     * Drop inputs cache to query the new ones
+     * Drop cache
      */
-    this.dropInputsCache();
+    this.cachedInputs = [];
 
     /**
      * Update current input
      */
     this.updateCurrentInput();
-  };
+  }
 
   /**
-   * Adds focus event listeners to all inputs and contenteditable
+   * Adds focus event listeners to all inputs and contentEditables
    */
   private addInputEvents(): void {
     this.inputs.forEach(input => {
@@ -837,161 +810,21 @@ export default class Block extends EventsDispatcher<BlockEvents> {
        * If input is native input add oninput listener to observe changes
        */
       if ($.isNativeInput(input)) {
-        input.addEventListener('input', this.didMutated as EventListener);
+        input.addEventListener('input', this.didMutated);
       }
     });
   }
 
   /**
-   * removes focus event listeners from all inputs and contenteditable
+   * removes focus event listeners from all inputs and contentEditables
    */
   private removeInputEvents(): void {
     this.inputs.forEach(input => {
       input.removeEventListener('focus', this.handleFocus);
 
       if ($.isNativeInput(input)) {
-        input.removeEventListener('input', this.didMutated as EventListener);
+        input.removeEventListener('input', this.didMutated);
       }
     });
-  }
-
-  /**
-   * Is fired when DOM mutation has been happened
-   *
-   * @param mutationsOrInputEvent - actual changes
-   *   - MutationRecord[] - any DOM change
-   *   - InputEvent — <input> change
-   *   - undefined — manual triggering of block.dispatchChange()
-   */
-  private readonly didMutated = (mutationsOrInputEvent: MutationRecord[] | InputEvent = undefined): void => {
-    /**
-     * Block API have dispatchChange() method. In this case, mutations list will be undefined.
-     */
-    const isManuallyDispatched = mutationsOrInputEvent === undefined;
-
-    /**
-     * True if didMutated has been called as "input" event handler
-     */
-    const isInputEventHandler = mutationsOrInputEvent instanceof InputEvent;
-
-    /**
-     * If tool updates its own root element, we need to renew it in our memory
-     */
-    if (!isManuallyDispatched && !isInputEventHandler) {
-      this.detectToolRootChange(mutationsOrInputEvent);
-    }
-
-    /**
-     * We won't fire a Block mutation event if mutation contain only nodes marked with 'data-mutation-free' attributes
-     */
-    let shouldFireUpdate;
-
-    if (isManuallyDispatched) {
-      shouldFireUpdate = true;
-    } else if (isInputEventHandler) {
-      shouldFireUpdate = true;
-    } else {
-      /**
-       * Update from 2023, Feb 17:
-       *    Changed mutationsOrInputEvent.some() to mutationsOrInputEvent.every()
-       *    since there could be a real mutations same-time with mutation-free changes,
-       *    for example when Block Tune change: block is changing along with FakeCursor (mutation-free) removing
-       *    — we should fire 'didMutated' event in that case
-       */
-      const everyRecordIsMutationFree = mutationsOrInputEvent.length > 0 && mutationsOrInputEvent.every((record) => {
-        const { addedNodes, removedNodes, target } = record;
-        const changedNodes = [
-          ...Array.from(addedNodes),
-          ...Array.from(removedNodes),
-          target,
-        ];
-
-        return changedNodes.some((node) => {
-          if (!$.isElement(node)) {
-            return false;
-          }
-
-          return (node as HTMLElement).dataset.mutationFree === 'true';
-        });
-      });
-
-      shouldFireUpdate = !everyRecordIsMutationFree;
-    }
-
-    /**
-     * In case some mutation free elements are added or removed, do not trigger didMutated event
-     */
-    if (!shouldFireUpdate) {
-      return;
-    }
-
-    this.dropInputsCache();
-
-    /**
-     * Update current input
-     */
-    this.updateCurrentInput();
-
-    this.call(BlockToolAPI.UPDATED);
-
-    /**
-     * Emit a Block Event with current Block instance.
-     * Block Manager subscribed to these events
-     */
-    this.emit('didMutated', this);
-  };
-
-  /**
-   * Listen common editor Dom Changed event and detect mutations related to the  Block
-   */
-  private watchBlockMutations(): void {
-    /**
-     * Save callback to a property to remove it on Block destroy
-     *
-     * @param payload - event payload
-     */
-    this.redactorDomChangedCallback = (payload) => {
-      const { mutations } = payload;
-
-      const mutationBelongsToBlock = mutations.some(record => isMutationBelongsToElement(record, this.toolRenderedElement));
-
-      if (mutationBelongsToBlock) {
-        this.didMutated(mutations);
-      }
-    };
-
-    this.editorEventBus?.on(RedactorDomChanged, this.redactorDomChangedCallback);
-  }
-
-  /**
-   * Remove redactor dom change event listener
-   */
-  private unwatchBlockMutations(): void {
-    this.editorEventBus?.off(RedactorDomChanged, this.redactorDomChangedCallback);
-  }
-
-  /**
-   * Sometimes Tool can replace own main element, for example H2 -> H4 or UL -> OL
-   * We need to detect such changes and update a link to tools main element with the new one
-   *
-   * @param mutations - records of block content mutations
-   */
-  private detectToolRootChange(mutations: MutationRecord[]): void {
-    mutations.forEach(record => {
-      const toolRootHasBeenUpdated = Array.from(record.removedNodes).includes(this.toolRenderedElement);
-
-      if (toolRootHasBeenUpdated) {
-        const newToolElement = record.addedNodes[record.addedNodes.length - 1];
-
-        this.toolRenderedElement = newToolElement as HTMLElement;
-      }
-    });
-  }
-
-  /**
-   * Clears inputs cached value
-   */
-  private dropInputsCache(): void {
-    this.cachedInputs = [];
   }
 }

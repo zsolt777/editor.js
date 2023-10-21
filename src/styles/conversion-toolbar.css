@@ -7,7 +7,7 @@
   transition: transform 100ms ease, opacity 100ms ease;
   transform: translateY(-8px);
   left: -1px;
-  width: 190px;
+  width: 150px;
   margin-top: 5px;
   box-sizing: content-box;
 
@@ -63,7 +63,20 @@
   }
 
   &__icon {
-    @apply --tool-icon;
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    border: 1px solid var(--color-gray-border);
+    border-radius: 3px;
+    align-items: center;
+    justify-content: center;
+    margin-right: 10px;
+    background: #fff;
+
+    svg {
+      width: 11px;
+      height: 11px;
+    }
   }
 
   &--last {
@@ -77,20 +90,5 @@
   &--active {
     animation: bounceIn 0.75s 1;
     animation-fill-mode: forwards;
-  }
-
-  &__secondary-label {
-    color: var(--grayText);
-    font-size: 12px;
-    margin-left: auto;
-    white-space: nowrap;
-    letter-spacing: -0.1em;
-    padding-right: 5px;
-    margin-bottom: -2px;
-    opacity: 0.6;
-
-    @media (--mobile){
-      display: none;
-    }
   }
 }

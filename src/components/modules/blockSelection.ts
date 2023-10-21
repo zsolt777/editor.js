@@ -1,6 +1,7 @@
 /**
  * @class BlockSelection
  * @classdesc Manages Block selection with shortcut CMD+A
+ *
  * @module BlockSelection
  * @version 1.0.0
  */
@@ -189,8 +190,10 @@ export default class BlockSelection extends Module {
    *
    *  - Remove all ranges
    *  - Unselect all Blocks
+   *
+   * @param {boolean} readOnlyEnabled - "read only" state
    */
-  public toggleReadOnly(): void {
+  public toggleReadOnly(readOnlyEnabled: boolean): void {
     SelectionUtils.get()
       .removeAllRanges();
 
@@ -247,13 +250,12 @@ export default class BlockSelection extends Module {
         const eventKey = (reason as KeyboardEvent).key;
 
         /**
-         * If event.key length >1 that means key is special (e.g. Enter or Dead or Unidentified).
+         * If event.key length >1 that means key is special (e.g. Enter or Dead or Unidentifier).
          * So we use empty string
          *
          * @see https://developer.mozilla.org/ru/docs/Web/API/KeyboardEvent/key
          */
         Caret.insertContentAtCaretPosition(eventKey.length > 1 ? '' : eventKey);
-      // eslint-disable-next-line @typescript-eslint/no-magic-numbers
       }, 20)();
     }
 
@@ -281,6 +283,7 @@ export default class BlockSelection extends Module {
    * Reduce each Block and copy its content
    *
    * @param {ClipboardEvent} e - copy/cut event
+   *
    * @returns {Promise<void>}
    */
   public copySelectedBlocks(e: ClipboardEvent): Promise<void> {

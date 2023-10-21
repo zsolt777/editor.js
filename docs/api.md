@@ -35,8 +35,6 @@ API for certain Block methods and properties. You can access it through `editor.
 
 `validate(data: BlockToolData): Promise<boolean>` — calls Tool's validate method if exists
 
-`dispatchChange(): void` - Allows to say Editor that Block was changed. Used to manually trigger Editor's 'onChange' callback. Can be useful for block changes invisible for editor core.
-
 ## Api object description
 
 Common API interface.
@@ -180,7 +178,7 @@ this.api.notifier.show({
 });
 ```
 
-![](assets/14fcdbe4-d6eb-41d4-b66e-e0e86ccf1a4b.jpg)
+![](https://capella.pics/14fcdbe4-d6eb-41d4-b66e-e0e86ccf1a4b.jpg)
 
 
 Check out [`codex-notifier` package page](https://github.com/codex-team/js-notifier) on GitHub to find docs, params and examples.
@@ -202,6 +200,8 @@ After executing the `destroy` method, editor inctance becomes an empty object. T
 ### Tooltip API
 
 Methods for showing Tooltip helper near your elements. Parameters are the same as in [CodeX Tooltips](http://github.com/codex-team/codex.tooltips) lib.
+
+![](https://capella.pics/00e7094a-fdb9-429b-8015-9c56f19b4ef5.jpg)
 
 #### Show
 

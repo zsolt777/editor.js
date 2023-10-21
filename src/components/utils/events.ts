@@ -1,39 +1,33 @@
 import { isEmpty } from '../utils';
 
 /**
- * Event Dispatcher event listener
- */
-type Listener<Data> = (data?: Data) => void;
-
-/**
- * Mapped type with subscriptions list
+ * @class EventDispatcher
  *
- * event name -> array of callbacks
- */
-type Subscriptions<EventMap> = {
-  [Key in keyof EventMap]: Listener<EventMap[Key]>[];
-};
-
-/**
- * Provides methods for working with Event Bus:
+ * Has two important methods:
  *    - {Function} on - appends subscriber to the event. If event doesn't exist - creates new one
  *    - {Function} emit - fires all subscribers with data
  *    - {Function off - unsubscribes callback
+ *
+ * @version 1.0.0
+ *
+ * @typedef {Events} Events
+ * @property {object} subscribers - all subscribers grouped by event name
  */
-export default class EventsDispatcher<EventMap> {
+export default class EventsDispatcher<Events extends string = string> {
   /**
-   * All subscribers grouped by event name
    * Object with events` names as key and array of callback functions as value
+   *
+   * @type {{}}
    */
-  private subscribers = <Subscriptions<EventMap>>{};
+  private subscribers: {[name: string]: Array<(data?: object) => object>} = {};
 
   /**
    * Subscribe any event on callback
    *
-   * @param eventName - event name
-   * @param callback - subscriber
+   * @param {string} eventName - event name
+   * @param {Function} callback - subscriber
    */
-  public on<Name extends keyof EventMap>(eventName: Name, callback: Listener<EventMap[Name]>): void {
+  public on(eventName: Events, callback: (data: object) => object): void {
     if (!(eventName in this.subscribers)) {
       this.subscribers[eventName] = [];
     }
@@ -45,15 +39,15 @@ export default class EventsDispatcher<EventMap> {
   /**
    * Subscribe any event on callback. Callback will be called once and be removed from subscribers array after call.
    *
-   * @param eventName - event name
-   * @param callback - subscriber
+   * @param {string} eventName - event name
+   * @param {Function} callback - subscriber
    */
-  public once<Name extends keyof EventMap>(eventName: Name, callback: Listener<EventMap[Name]>): void {
+  public once(eventName: Events, callback: (data: object) => object): void {
     if (!(eventName in this.subscribers)) {
       this.subscribers[eventName] = [];
     }
 
-    const wrappedCallback = (data: EventMap[typeof eventName]): void => {
+    const wrappedCallback = (data: object): object => {
       const result = callback(data);
 
       const indexOfHandler = this.subscribers[eventName].indexOf(wrappedCallback);
@@ -72,10 +66,10 @@ export default class EventsDispatcher<EventMap> {
   /**
    * Emit callbacks with passed data
    *
-   * @param eventName - event name
-   * @param data - subscribers get this data when they were fired
+   * @param {string} eventName - event name
+   * @param {object} data - subscribers get this data when they were fired
    */
-  public emit<Name extends keyof EventMap>(eventName: Name, data?: EventMap[Name]): void {
+  public emit(eventName: Events, data?: object): void {
     if (isEmpty(this.subscribers) || !this.subscribers[eventName]) {
       return;
     }
@@ -83,23 +77,17 @@ export default class EventsDispatcher<EventMap> {
     this.subscribers[eventName].reduce((previousData, currentHandler) => {
       const newData = currentHandler(previousData);
 
-      return newData !== undefined ? newData : previousData;
+      return newData || previousData;
     }, data);
   }
 
   /**
    * Unsubscribe callback from event
    *
-   * @param eventName - event name
-   * @param callback - event handler
+   * @param {string} eventName - event name
+   * @param {Function} callback - event handler
    */
-  public off<Name extends keyof EventMap>(eventName: Name, callback: Listener<EventMap[Name]>): void {
-    if (this.subscribers[eventName] === undefined) {
-      console.warn(`EventDispatcher .off(): there is no subscribers for event "${eventName.toString()}". Probably, .off() called before .on()`);
-
-      return;
-    }
-
+  public off(eventName: Events, callback: (data: object) => object): void {
     for (let i = 0; i < this.subscribers[eventName].length; i++) {
       if (this.subscribers[eventName][i] === callback) {
         delete this.subscribers[eventName][i];
@@ -110,9 +98,9 @@ export default class EventsDispatcher<EventMap> {
 
   /**
    * Destroyer
-   * clears subscribers list
+   * clears subsribers list
    */
   public destroy(): void {
-    this.subscribers = {} as Subscriptions<EventMap>;
+    this.subscribers = null;
   }
 }

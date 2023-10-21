@@ -5,11 +5,38 @@ import { EditorModules } from '../types-internal/editor-modules';
 import I18n from './i18n';
 import { CriticalError } from './errors/critical';
 import EventsDispatcher from './utils/events';
-import Modules from './modules';
-import { EditorEventMap } from './events';
 
 /**
- * Editor.js core class. Bootstraps modules.
+ * @typedef {Core} Core - editor core class
+ */
+
+/**
+ * Require Editor modules places in components/modules dir
+ */
+const contextRequire = require.context('./modules', true);
+
+const modules = [];
+
+contextRequire.keys().forEach((filename) => {
+  /**
+   * Include files if:
+   * - extension is .js or .ts
+   * - does not starts with _
+   */
+  if (filename.match(/^\.\/[^_][\w/]*\.([tj])s$/)) {
+    modules.push(contextRequire(filename));
+  }
+});
+
+/**
+ * @class Core
+ *
+ * @classdesc Editor.js core class
+ *
+ * @property {EditorConfig} config - all settings
+ * @property {EditorModules} moduleInstances - constructed editor components
+ *
+ * @type {Core}
  */
 export default class Core {
   /**
@@ -28,19 +55,19 @@ export default class Core {
   public isReady: Promise<void>;
 
   /**
-   * Common Editor Event Bus
+   * Event Dispatcher util
    */
-  private eventsDispatcher: EventsDispatcher<EditorEventMap> = new EventsDispatcher();
+  private eventsDispatcher: EventsDispatcher = new EventsDispatcher();
 
   /**
    * @param {EditorConfig} config - user configuration
+   *
    */
   constructor(config?: EditorConfig|string) {
     /**
      * Ready promise. Resolved if Editor.js is ready to work, rejected otherwise
      */
-    let onReady: (value?: void | PromiseLike<void>) => void;
-    let onFail: (reason?: unknown) => void;
+    let onReady, onFail;
 
     this.isReady = new Promise((resolve, reject) => {
       onReady = resolve;
@@ -51,22 +78,32 @@ export default class Core {
       .then(async () => {
         this.configuration = config;
 
-        this.validate();
-        this.init();
+        await this.validate();
+        await this.init();
         await this.start();
-        await this.render();
 
-        const { BlockManager, Caret, UI, ModificationsObserver } = this.moduleInstances;
+        _.logLabeled('I\'m ready! (ﾉ◕ヮ◕)ﾉ*:･ﾟ✧', 'log', '', 'color: #E24A75');
 
-        UI.checkEmptiness();
-        ModificationsObserver.enable();
+        setTimeout(async () => {
+          await this.render();
 
-        if ((this.configuration as EditorConfig).autofocus) {
-          Caret.setToBlock(BlockManager.blocks[0], Caret.positions.START);
-          BlockManager.highlightCurrentNode();
-        }
+          if ((this.configuration as EditorConfig).autofocus) {
+            const { BlockManager, Caret } = this.moduleInstances;
 
-        onReady();
+            Caret.setToBlock(BlockManager.blocks[0], Caret.positions.START);
+            BlockManager.highlightCurrentNode();
+          }
+
+          /**
+           * Remove loader, show content
+           */
+          this.moduleInstances.UI.removeLoader();
+
+          /**
+           * Resolve this.isReady promise
+           */
+          onReady();
+        }, 500);
       })
       .catch((error) => {
         _.log(`Editor.js is not ready because of ${error}`, 'error');
@@ -136,7 +173,6 @@ export default class Core {
      *
      * @type {number}
      */
-    // eslint-disable-next-line @typescript-eslint/no-magic-numbers
     this.config.minHeight = this.config.minHeight !== undefined ? this.config.minHeight : 300;
 
     /**
@@ -194,14 +230,16 @@ export default class Core {
    *
    * @returns {EditorConfig}
    */
-  public get configuration(): EditorConfig {
+  public get configuration(): EditorConfig|string {
     return this.config;
   }
 
   /**
    * Checks for required fields in Editor's config
+   *
+   * @returns {Promise<void>}
    */
-  public validate(): void {
+  public async validate(): Promise<void> {
     const { holderId, holder } = this.config;
 
     if (holderId && holder) {
@@ -289,14 +327,27 @@ export default class Core {
    * Make modules instances and save it to the @property this.moduleInstances
    */
   private constructModules(): void {
-    Object.entries(Modules).forEach(([key, module]) => {
+    modules.forEach((module) => {
+      /**
+       * If module has non-default exports, passed object contains them all and default export as 'default' property
+       */
+      const Module = _.isFunction(module) ? module : module.default;
+
       try {
-        this.moduleInstances[key] = new module({
+        /**
+         * We use class name provided by displayName property
+         *
+         * On build, Babel will transform all Classes to the Functions so, name will always be 'Function'
+         * To prevent this, we use 'babel-plugin-class-display-name' plugin
+         *
+         * @see  https://www.npmjs.com/package/babel-plugin-class-display-name
+         */
+        this.moduleInstances[Module.displayName] = new Module({
           config: this.configuration,
           eventsDispatcher: this.eventsDispatcher,
         });
       } catch (e) {
-        _.log('[constructModules]', `Module ${key} skipped because`, 'error', e);
+        _.log(`Module ${Module.displayName} skipped because`, 'warn', e);
       }
     });
   }

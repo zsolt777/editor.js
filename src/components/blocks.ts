@@ -6,8 +6,11 @@ import { MoveEvent } from '../../types/tools';
 /**
  * @class Blocks
  * @classdesc Class to work with Block instances array
+ *
  * @private
+ *
  * @property {HTMLElement} workingArea — editor`s working node
+ *
  */
 export default class Blocks {
   /**
@@ -22,6 +25,7 @@ export default class Blocks {
 
   /**
    * @class
+   *
    * @param {HTMLElement} workingArea — editor`s working node
    */
   constructor(workingArea: HTMLElement) {
@@ -61,6 +65,7 @@ export default class Blocks {
    *
    * @example
    * blocks[0] = new Block(...)
+   *
    * @param {Blocks} instance — Blocks instance
    * @param {PropertyKey} property — block index or any Blocks class property key to set
    * @param {Block} value — value to set
@@ -221,62 +226,6 @@ export default class Blocks {
   }
 
   /**
-   * Replaces block under passed index with passed block
-   *
-   * @param index - index of existed block
-   * @param block - new block
-   */
-  public replace(index: number, block: Block): void {
-    if (this.blocks[index] === undefined) {
-      throw Error('Incorrect index');
-    }
-
-    const prevBlock = this.blocks[index];
-
-    prevBlock.holder.replaceWith(block.holder);
-
-    this.blocks[index] = block;
-  }
-
-  /**
-   * Inserts several blocks at once
-   *
-   * @param blocks - blocks to insert
-   * @param index - index to insert blocks at
-   */
-  public insertMany(blocks: Block[], index: number ): void {
-    const fragment = new DocumentFragment();
-
-    for (const block of blocks) {
-      fragment.appendChild(block.holder);
-    }
-
-    if (this.length > 0) {
-      if (index > 0) {
-        const previousBlockIndex = Math.min(index - 1, this.length - 1);
-        const previousBlock = this.blocks[previousBlockIndex];
-
-        previousBlock.holder.after(fragment);
-      } else if (index === 0) {
-        this.workingArea.prepend(fragment);
-      }
-
-      /**
-       * Insert blocks to the array at the specified index
-       */
-      this.blocks.splice(index, 0, ...blocks);
-    } else {
-      this.blocks.push(...blocks);
-      this.workingArea.appendChild(fragment);
-    }
-
-    /**
-     * Call Rendered event for each block
-     */
-    blocks.forEach((block) => block.call(BlockToolAPI.RENDERED));
-  }
-
-  /**
    * Remove block
    *
    * @param {number} index - index of Block to remove
@@ -308,6 +257,7 @@ export default class Blocks {
    * Insert Block after passed target
    *
    * @todo decide if this method is necessary
+   *
    * @param {Block} targetBlock — target after which Block should be inserted
    * @param {Block} newBlock — Block to insert
    */
@@ -323,7 +273,7 @@ export default class Blocks {
    * @param {number} index — Block index
    * @returns {Block}
    */
-  public get(index: number): Block | undefined {
+  public get(index: number): Block {
     return this.blocks[index];
   }
 

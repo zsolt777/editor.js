@@ -3,7 +3,6 @@ import { EditorConfig } from '../../types';
 import { ModuleConfig } from '../types-internal/module-config';
 import Listeners from './utils/listeners';
 import EventsDispatcher from './utils/events';
-import { EditorEventMap } from './events';
 
 /**
  * The type <T> of the Module generic.
@@ -15,11 +14,12 @@ export type ModuleNodes = object;
  * @abstract
  * @class      Module
  * @classdesc  All modules inherits from this class.
+ *
  * @typedef {Module} Module
  * @property {object} config - Editor user settings
  * @property {EditorModules} Editor - List of Editor modules
  */
-export default class Module<T extends ModuleNodes = Record<string, HTMLElement>> {
+export default class Module<T extends ModuleNodes = {}> {
   /**
    * Each module can provide some UI elements that will be stored in this property
    */
@@ -43,7 +43,7 @@ export default class Module<T extends ModuleNodes = Record<string, HTMLElement>>
   /**
    * Editor event dispatcher class
    */
-  protected eventsDispatcher: EventsDispatcher<EditorEventMap>;
+  protected eventsDispatcher: EventsDispatcher;
 
   /**
    * Util for bind/unbind DOM event listeners
@@ -92,9 +92,8 @@ export default class Module<T extends ModuleNodes = Record<string, HTMLElement>>
 
   /**
    * @class
-   * @param options - Module options
-   * @param options.config - Module config
-   * @param options.eventsDispatcher - Common event bus
+   *
+   * @param {ModuleConfig} - Module config
    */
   constructor({ config, eventsDispatcher }: ModuleConfig) {
     if (new.target === Module) {

@@ -146,7 +146,7 @@ export default class SelectionUtils {
   /**
    * Check if passed selection is at Editor's zone
    *
-   * @param selection - Selection object to check
+   * @param selection - Selectoin object to check
    */
   public static isSelectionAtEditor(selection: Selection): boolean {
     if (!selection) {
@@ -225,7 +225,7 @@ export default class SelectionUtils {
    *
    * @param selection - Selection object to get Range from
    */
-  public static getRangeFromSelection(selection: Selection): Range | null {
+  public static getRangeFromSelection(selection: Selection): Range {
     return selection && selection.rangeCount ? selection.getRangeAt(0) : null;
   }
 
@@ -326,8 +326,10 @@ export default class SelectionUtils {
    *
    * @param element - element where to set focus
    * @param offset - offset of cursor
+   *
+   * @returns {DOMRect} of range
    */
-  public static setCursor(element: HTMLElement, offset = 0): DOMRect {
+  public static setCursor(element: Node, offset = 0): DOMRect {
     const range = document.createRange();
     const selection = window.getSelection();
 
@@ -353,45 +355,22 @@ export default class SelectionUtils {
   }
 
   /**
-   * Check if current range exists and belongs to container
-   *
-   * @param container - where range should be
-   */
-  public static isRangeInsideContainer(container: HTMLElement): boolean {
-    const range = SelectionUtils.range;
-
-    if (range === null) {
-      return false;
-    }
-
-    return container.contains(range.startContainer);
-  }
-
-  /**
    * Adds fake cursor to the current range
+   *
+   * @param [container] - if passed cursor will be added only if container contains current range
    */
-  public static addFakeCursor(): void {
+  public static addFakeCursor(container?: HTMLElement): void {
     const range = SelectionUtils.range;
-
-    if (range === null) {
-      return;
-    }
-
     const fakeCursor = $.make('span', 'codex-editor__fake-cursor');
 
     fakeCursor.dataset.mutationFree = 'true';
 
+    if (!range || (container && !container.contains(range.startContainer))) {
+      return;
+    }
+
     range.collapse();
     range.insertNode(fakeCursor);
-  }
-
-  /**
-   * Check if passed element contains a fake cursor
-   *
-   * @param el - where to check
-   */
-  public static isFakeCursorInsideContainer(el: HTMLElement): boolean {
-    return $.find(el, `.codex-editor__fake-cursor`) !== null;
   }
 
   /**
@@ -402,11 +381,7 @@ export default class SelectionUtils {
   public static removeFakeCursor(container: HTMLElement = document.body): void {
     const fakeCursor = $.find(container, `.codex-editor__fake-cursor`);
 
-    if (!fakeCursor) {
-      return;
-    }
-
-    fakeCursor.remove();
+    fakeCursor && fakeCursor.remove();
   }
 
   /**
@@ -477,6 +452,7 @@ export default class SelectionUtils {
    * @param  {string} tagName       - tag to found
    * @param  {string} [className]   - tag's class name
    * @param  {number} [searchDepth] - count of tags that can be included. For better performance.
+   *
    * @returns {HTMLElement|null}
    */
   public findParentTag(tagName: string, className?: string, searchDepth = 10): HTMLElement | null {
@@ -550,7 +526,7 @@ export default class SelectionUtils {
   /**
    * Expands selection range to the passed parent node
    *
-   * @param {HTMLElement} element - element which contents should be selected
+   * @param {HTMLElement} element - element which contents should be selcted
    */
   public expandToTag(element: HTMLElement): void {
     const selection = window.getSelection();

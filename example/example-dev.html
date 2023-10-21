@@ -1,5 +1,5 @@
 <!--
- Use this page is for debugging purposes.
+ Use this page for debugging purposes.
 
  Editor Tools are loaded as git-submodules.
  You can pull modules by running `yarn pull_tools` and start experimenting.
@@ -10,16 +10,11 @@
   <meta charset="UTF-8">
   <title>Editor.js 🤩🧦🤨 example</title>
   <link href="https://fonts.googleapis.com/css?family=PT+Mono" rel="stylesheet">
-  <link href="../public/assets/demo.css" rel="stylesheet">
-  <script src="../public/assets/json-preview.js"></script>
+  <link href="assets/demo.css" rel="stylesheet">
+  <script src="assets/json-preview.js"></script>
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
 </head>
 <body>
-  <script>
-    if (localStorage.getItem('theme') === 'dark') {
-      document.body.classList.add("dark-mode");
-    }
-  </script>
   <div class="ce-example">
     <div class="ce-example__header">
       <a class="ce-example__header-logo" href="https://codex.so/editor">Editor.js 🤩🧦🤨</a>
@@ -31,7 +26,7 @@
         <a href="https://editorjs.io/creating-a-block-tool" target="_blank">API</a>
       </div>
     </div>
-    <div class="ce-example__content">
+    <div class="ce-example__content _ce-example__content--small">
       <div id="editorjs"></div>
       <div id="hint-core" style="text-align: center;">
         No core bundle file found. Run <code class="inline-code">yarn build</code>
@@ -43,31 +38,12 @@
         editor.save()
       </div>
       <div class="ce-example__statusbar">
-        <div class="ce-example__statusbar-item">
-          Readonly:
-          <b id="readonly-state">
-            Off
-          </b>
-          &nbsp;
-          <div class="ce-example__statusbar-button" id="toggleReadOnlyButton">
-            toggle
-          </div>
-        </div>
-        <div class="ce-example__statusbar-item">
-          <div class="ce-example__statusbar-button" id="showBlocksBoundariesButton">
-            <span data-toggled-text="Hide">Show</span>
-            blocks boundaries
-          </div>
-        </div>
-        <div class="ce-example__statusbar-item">
-          <div class="ce-example__statusbar-button" id="enableThinModeButton">
-            <span data-toggled-text="Disable">Enable</span>
-            thin mode
-          </div>
-        </div>
-        <div class="ce-example__statusbar-item ce-example__statusbar-item--right">
-          <div class="ce-example__statusbar-toggler" id="darkThemeToggler">
-          </div>
+        Readonly:
+        <b id="readonly-state">
+          Off
+        </b>
+        <div class="ce-example__statusbar-button" id="toggleReadOnlyButton">
+          toggle
         </div>
       </div>
     </div>
@@ -92,8 +68,7 @@
   <script src="./tools/header/dist/bundle.js" onload="document.getElementById('hint-tools').hidden = true"></script><!-- Header -->
   <script src="./tools/simple-image/dist/bundle.js"></script><!-- Image -->
   <script src="./tools/delimiter/dist/bundle.js"></script><!-- Delimiter -->
-  <!--  <script src="./tools/list/dist/bundle.js"></script> List-->
-  <script src="./tools/nested-list/dist/nested-list.js"></script><!-- Nested List -->
+  <script src="./tools/list/dist/bundle.js"></script> <!-- List -->
   <script src="./tools/checklist/dist/bundle.js"></script><!-- Checklist -->
   <script src="./tools/quote/dist/bundle.js"></script><!-- Quote -->
   <script src="./tools/code/dist/bundle.js"></script><!-- Code -->
@@ -107,15 +82,15 @@
   <script src="./tools/inline-code/dist/bundle.js"></script><!-- Inline Code -->
 
   <!-- Load Editor.js's Core -->
-  <script src="../dist/editorjs.umd.js" onload="document.getElementById('hint-core').hidden = true;"></script>
+  <script src="../dist/editor.js" onload="document.getElementById('hint-core').hidden = true;"></script>
 
   <!-- Initialization -->
   <script>
     /**
-     * Editor init config
-     * @see https://editorjs.io/configuration
+     * To initialize the Editor, create a new instance with configuration object
+     * @see docs/installation.md for mode details
      */
-    const editorConfig = {
+    var editor = new EditorJS({
       /**
        * Enable/Disable the read only mode
        */
@@ -156,7 +131,7 @@
         image: SimpleImage,
 
         list: {
-          class: NestedList,
+          class: List,
           inlineToolbar: true,
           shortcut: 'CMD+SHIFT+L'
         },
@@ -224,7 +199,7 @@
             type: "header",
             data: {
               text: "Editor.js",
-              level: 1
+              level: 2
             }
           },
           {
@@ -239,7 +214,7 @@
             id: "7ItVl5biRo",
             data: {
               text: "Key features",
-              level: 2
+              level: 3
             }
           },
           {
@@ -247,18 +222,9 @@
             id: "SSBSguGvP7",
             data : {
               items : [
-                {
-                  content: 'It is a block-styled editor',
-                  items: []
-                },
-                {
-                  content: 'It returns clean data output in JSON',
-                  items: []
-                },
-                {
-                  content: 'Designed to be extendable and pluggable with a simple API',
-                  items: []
-                }
+                'It is a block-styled editor',
+                'It returns clean data output in JSON',
+                'Designed to be extendable and pluggable with a simple API',
               ],
               style: 'unordered'
             }
@@ -268,7 +234,7 @@
             id: "QZFox1m_ul",
             data: {
               text: "What does it mean «block-styled editor»",
-              level: 2
+              level: 3
             }
           },
           {
@@ -290,7 +256,7 @@
             id: "1sYMhUrznu",
             data: {
               text: "What does it mean clean data output",
-              level: 2
+              level: 3
             }
           },
           {
@@ -342,15 +308,10 @@
       onReady: function(){
         saveButton.click();
       },
-      onChange: function(api, event) {
-        console.log('something changed', event);
+      onChange: function(api, block) {
+        console.log('something changed', block);
       },
-    }
-    /**
-     * To initialize the Editor, create a new instance with configuration object
-     * @see docs/installation.md for mode details
-     */
-    var editor = new EditorJS(editorConfig);
+    });
 
     /**
      * Saving button
@@ -384,39 +345,6 @@
 
       readOnlyIndicator.textContent = readOnlyState ? 'On' : 'Off';
     });
-
-    /**
-     * Button for displaying blocks borders. Useful for UI development
-     */
-    const showBlocksBoundariesButton = document.getElementById("showBlocksBoundariesButton");
-
-    showBlocksBoundariesButton.addEventListener('click', () => {
-      document.body.classList.toggle("show-block-boundaries")
-    })
-
-    /**
-     * Button for enabling the 'Thin' mode
-     */
-    const enableThinModeButton = document.getElementById("enableThinModeButton");
-
-    enableThinModeButton.addEventListener('click', () => {
-      document.body.classList.toggle("thin-mode")
-
-      editor.destroy();
-
-      editor = new EditorJS(editorConfig);
-    })
-
-    /**
-     * Toggler for toggling the dark mode
-     */
-    const darkThemeToggler = document.getElementById("darkThemeToggler");
-
-    darkThemeToggler.addEventListener('click', () => {
-      document.body.classList.toggle("dark-mode");
-
-      localStorage.setItem('theme', document.body.classList.contains("dark-mode") ? 'dark' : 'default');
-    })
   </script>
 </body>
 </html>

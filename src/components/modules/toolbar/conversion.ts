@@ -1,10 +1,11 @@
 import Module from '../../__module';
 import $ from '../../dom';
 import * as _ from '../../utils';
+import { SavedData } from '../../../../types/data-formats';
 import Flipper from '../../flipper';
 import I18n from '../../i18n';
 import { I18nInternalNS } from '../../i18n/namespace-internal';
-import { ToolboxConfigEntry, BlockToolData } from '../../../../types';
+import { clean } from '../../utils/sanitizer';
 
 /**
  * HTML Elements used for ConversionToolbar
@@ -16,8 +17,6 @@ interface ConversionToolbarNodes {
 
 /**
  * Block Converter
- *
- * @todo Make the Conversion Toolbar no-module but a standalone class, like Toolbox
  */
 export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
   /**
@@ -32,7 +31,6 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
       conversionTool: 'ce-conversion-tool',
       conversionToolHidden: 'ce-conversion-tool--hidden',
       conversionToolIcon: 'ce-conversion-tool__icon',
-      conversionToolSecondaryLabel: 'ce-conversion-tool__secondary-label',
 
       conversionToolFocused: 'ce-conversion-tool--focused',
       conversionToolActive: 'ce-conversion-tool--active',
@@ -47,9 +45,9 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
   public opened = false;
 
   /**
-   * Available tools data
+   * Available tools
    */
-  private tools: {name: string; toolboxItem: ToolboxConfigEntry; button: HTMLElement}[] = [];
+  private tools: { [key: string]: HTMLElement } = {};
 
   /**
    * Instance of class that responses for leafing buttons by arrows/tab
@@ -135,18 +133,19 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
     this.nodes.wrapper.classList.add(ConversionToolbar.CSS.conversionToolbarShowed);
 
     /**
-     * We use RAF to prevent bubbling Enter keydown on first dropdown item
+     * We use timeout to prevent bubbling Enter keydown on first dropdown item
      * Conversion flipper will be activated after dropdown will open
      */
-    window.requestAnimationFrame(() => {
-      this.flipper.activate(this.tools.map(tool => tool.button).filter((button) => {
+    setTimeout(() => {
+      this.flipper.activate(Object.values(this.tools).filter((button) => {
         return !button.classList.contains(ConversionToolbar.CSS.conversionToolHidden);
       }));
       this.flipper.focusFirst();
+
       if (_.isFunction(this.togglingCallback)) {
         this.togglingCallback(true);
       }
-    });
+    }, 50);
   }
 
   /**
@@ -166,11 +165,9 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
    * Returns true if it has more than one tool available for convert in
    */
   public hasTools(): boolean {
-    if (this.tools.length === 1) {
-      return this.tools[0].name !== this.config.defaultBlock;
-    }
+    const tools = Object.keys(this.tools); // available tools in array representation
 
-    return true;
+    return !(tools.length === 1 && tools.shift() === this.config.defaultBlock);
   }
 
   /**
@@ -178,21 +175,93 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
    * For that Tools must provide import/export methods
    *
    * @param {string} replacingToolName - name of Tool which replaces current
-   * @param blockDataOverrides - If this conversion fired by the one of multiple Toolbox items, extend converted data with this item's "data" overrides
    */
-  public async replaceWithBlock(replacingToolName: string, blockDataOverrides?: BlockToolData): Promise<void> {
-    const { BlockManager, BlockSelection, InlineToolbar, Caret } = this.Editor;
+  public async replaceWithBlock(replacingToolName: string): Promise<void> {
+    /**
+     * At first, we get current Block data
+     *
+     * @type {BlockToolConstructable}
+     */
+    const currentBlockTool = this.Editor.BlockManager.currentBlock.tool;
+    const currentBlockName = this.Editor.BlockManager.currentBlock.name;
+    const savedBlock = await this.Editor.BlockManager.currentBlock.save() as SavedData;
+    const blockData = savedBlock.data;
 
-    BlockManager.convert(this.Editor.BlockManager.currentBlock, replacingToolName, blockDataOverrides);
+    /**
+     * When current Block name is equals to the replacing tool Name,
+     * than convert this Block back to the default Block
+     */
+    if (currentBlockName === replacingToolName) {
+      replacingToolName = this.config.defaultBlock;
+    }
 
-    BlockSelection.clearSelection();
+    /**
+     * Getting a class of replacing Tool
+     *
+     * @type {BlockToolConstructable}
+     */
+    const replacingTool = this.Editor.Tools.blockTools.get(replacingToolName);
+
+    /**
+     * Export property can be:
+     * 1) Function — Tool defines which data to return
+     * 2) String — the name of saved property
+     *
+     * In both cases returning value must be a string
+     */
+    let exportData = '';
+    const exportProp = currentBlockTool.conversionConfig.export;
+
+    if (_.isFunction(exportProp)) {
+      exportData = exportProp(blockData);
+    } else if (_.isString(exportProp)) {
+      exportData = blockData[exportProp];
+    } else {
+      _.log('Conversion «export» property must be a string or function. ' +
+        'String means key of saved data object to export. Function should export processed string to export.');
+
+      return;
+    }
+
+    /**
+     * Clean exported data with replacing sanitizer config
+     */
+    const cleaned: string = clean(
+      exportData,
+      replacingTool.sanitizeConfig
+    );
+
+    /**
+     * «import» property can be Function or String
+     * function — accept imported string and compose tool data object
+     * string — the name of data field to import
+     */
+    let newBlockData = {};
+    const importProp = replacingTool.conversionConfig.import;
+
+    if (_.isFunction(importProp)) {
+      newBlockData = importProp(cleaned);
+    } else if (_.isString(importProp)) {
+      newBlockData[importProp] = cleaned;
+    } else {
+      _.log('Conversion «import» property must be a string or function. ' +
+        'String means key of tool data to import. Function accepts a imported string and return composed tool data.');
+
+      return;
+    }
+
+    this.Editor.BlockManager.replace({
+      tool: replacingToolName,
+      data: newBlockData,
+    });
+    this.Editor.BlockSelection.clearSelection();
 
     this.close();
-    InlineToolbar.close();
+    this.Editor.InlineToolbar.close();
 
-    window.requestAnimationFrame(() => {
-      Caret.setToBlock(this.Editor.BlockManager.currentBlock, Caret.positions.END);
-    });
+    _.delay(() => {
+      this.Editor.Caret.setToBlock(this.Editor.BlockManager.currentBlock);
+    }, 10)();
   }
 
   /**
@@ -205,7 +274,15 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
     Array
       .from(tools.entries())
       .forEach(([name, tool]) => {
+        const toolboxSettings = tool.toolbox;
         const conversionConfig = tool.conversionConfig;
+
+        /**
+         * Skip tools that don't pass 'toolbox' property
+         */
+        if (_.isEmpty(toolboxSettings) || !toolboxSettings.icon) {
+          return;
+        }
 
         /**
          * Skip tools without «import» rule specified
@@ -213,95 +290,48 @@ export default class ConversionToolbar extends Module<ConversionToolbarNodes> {
         if (!conversionConfig || !conversionConfig.import) {
           return;
         }
-        tool.toolbox?.forEach((toolboxItem) =>
-          this.addToolIfValid(name, toolboxItem)
-        );
+
+        this.addTool(name, toolboxSettings.icon, toolboxSettings.title);
       });
-  }
-
-  /**
-   * Inserts a tool to the ConversionToolbar if the tool's toolbox config is valid
-   *
-   * @param name - tool's name
-   * @param toolboxSettings - tool's single toolbox setting
-   */
-  private addToolIfValid(name: string, toolboxSettings: ToolboxConfigEntry): void {
-    /**
-     * Skip tools that don't pass 'toolbox' property
-     */
-    if (_.isEmpty(toolboxSettings) || !toolboxSettings.icon) {
-      return;
-    }
-
-    this.addTool(name, toolboxSettings);
   }
 
   /**
    * Add tool to the Conversion Toolbar
    *
-   * @param toolName - name of Tool to add
-   * @param toolboxItem - tool's toolbox item data
+   * @param {string} toolName - name of Tool to add
+   * @param {string} toolIcon - Tool icon
+   * @param {string} title - button title
    */
-  private addTool(toolName: string, toolboxItem: ToolboxConfigEntry): void {
+  private addTool(toolName: string, toolIcon: string, title: string): void {
     const tool = $.make('div', [ ConversionToolbar.CSS.conversionTool ]);
     const icon = $.make('div', [ ConversionToolbar.CSS.conversionToolIcon ]);
 
     tool.dataset.tool = toolName;
-    icon.innerHTML = toolboxItem.icon;
+    icon.innerHTML = toolIcon;
 
     $.append(tool, icon);
-    $.append(tool, $.text(I18n.t(I18nInternalNS.toolNames, toolboxItem.title || _.capitalize(toolName))));
-
-    const shortcut = this.Editor.Tools.blockTools.get(toolName)?.shortcut;
-
-    if (shortcut) {
-      const shortcutEl = $.make('span', ConversionToolbar.CSS.conversionToolSecondaryLabel, {
-        innerText: _.beautifyShortcut(shortcut),
-      });
-
-      $.append(tool, shortcutEl);
-    }
+    $.append(tool, $.text(I18n.t(I18nInternalNS.toolNames, title || _.capitalize(toolName))));
 
     $.append(this.nodes.tools, tool);
-    this.tools.push({
-      name: toolName,
-      button: tool,
-      toolboxItem: toolboxItem,
-    });
+    this.tools[toolName] = tool;
 
     this.listeners.on(tool, 'click', async () => {
-      await this.replaceWithBlock(toolName, toolboxItem.data);
+      await this.replaceWithBlock(toolName);
     });
   }
 
   /**
    * Hide current Tool and show others
    */
-  private async filterTools(): Promise<void> {
+  private filterTools(): void {
     const { currentBlock } = this.Editor.BlockManager;
-    const currentBlockActiveToolboxEntry = await currentBlock.getActiveToolboxEntry();
 
     /**
-     * Compares two Toolbox entries
-     *
-     * @param entry1 - entry to compare
-     * @param entry2 - entry to compare with
+     * Show previously hided
      */
-    function isTheSameToolboxEntry(entry1, entry2): boolean {
-      return entry1.icon === entry2.icon && entry1.title === entry2.title;
-    }
-
-    this.tools.forEach(tool => {
-      let hidden = false;
-
-      if (currentBlockActiveToolboxEntry) {
-        const isToolboxItemActive = isTheSameToolboxEntry(currentBlockActiveToolboxEntry, tool.toolboxItem);
-
-        hidden = (tool.button.dataset.tool === currentBlock.name && isToolboxItemActive);
-      }
-
-      tool.button.hidden = hidden;
-      tool.button.classList.toggle(ConversionToolbar.CSS.conversionToolHidden, hidden);
+    Object.entries(this.tools).forEach(([name, button]) => {
+      button.hidden = false;
+      button.classList.toggle(ConversionToolbar.CSS.conversionToolHidden, name === currentBlock.name);
     });
   }
 

@@ -1,8 +1,6 @@
 .ce-inline-toolbar {
-  --y-offset: 8px;
-
   @apply --overlay-pane;
-  transform: translateX(-50%) translateY(8px) scale(0.94);
+  transform: translateX(-50%) translateY(8px) scale(0.9);
   opacity: 0;
   visibility: hidden;
   transition: transform 150ms ease, opacity 250ms ease;
@@ -18,7 +16,7 @@
   }
 
   &--left-oriented {
-    transform: translateX(-23px) translateY(8px) scale(0.94);
+    transform: translateX(-23px) translateY(8px) scale(0.9);
   }
 
   &--left-oriented&--showed {
@@ -26,7 +24,7 @@
   }
 
   &--right-oriented {
-    transform: translateX(-100%) translateY(8px) scale(0.94);
+    transform: translateX(-100%) translateY(8px) scale(0.9);
     margin-left: 23px;
   }
 
@@ -52,31 +50,34 @@
   }
 
   &__dropdown {
-    display: flex;
-    padding: 6px;
+    display: inline-flex;
+    height: var(--toolbar-buttons-size);
+    padding: 0 9px 0 10px;
     margin: 0 6px 0 -6px;
     align-items: center;
     cursor: pointer;
     border-right: 1px solid var(--color-gray-border);
-    box-sizing: border-box;
 
-    @media (--can-hover) {
-      &:hover {
-        background: var(--bg-light);
-      }
+    &:hover {
+      background: var(--bg-light);
     }
 
     &--hidden {
       display: none;
     }
 
-    &-content,
-    &-arrow {
+    &-content{
       display: flex;
+      font-weight: 500;
+      font-size: 14px;
+
       svg {
-        width: var(--icon-size);
-        height: var(--icon-size);
+        height: 12px;
       }
+    }
+
+    .icon--toggler-down {
+      margin-left: 4px;
     }
   }
 
@@ -89,10 +90,19 @@
 
 .ce-inline-tool {
   @apply --toolbar-button;
-
   border-radius: 0;
   line-height: normal;
+  width: auto;
+  padding: 0 5px !important;
+  min-width: 24px;
 
+  &:not(:last-of-type) {
+    margin-right: 2px;
+  }
+
+  .icon {
+    height: 12px;
+  }
 
   &--link {
     .icon--unlink {
@@ -122,13 +132,6 @@
     display: none;
     font-weight: 500;
     border-top: 1px solid rgba(201,201,204,.48);
-    -webkit-appearance: none;
-    font-family: inherit;
-
-    @media (--mobile){
-      font-size: 15px;
-      font-weight: 500;
-    }
 
     &::placeholder {
       color: var(--grayText);

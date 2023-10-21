@@ -5,8 +5,8 @@ import {
   BlockToolConstructable,
   BlockToolData,
   ConversionConfig,
-  PasteConfig, SanitizerConfig, ToolboxConfig,
-  ToolboxConfigEntry
+  PasteConfig, SanitizerConfig,
+  ToolboxConfig
 } from '../../../types';
 import * as _ from '../utils';
 import InlineTool from './inline';
@@ -70,73 +70,27 @@ export default class BlockTool extends BaseTool<IBlockTool> {
   }
 
   /**
-   * Returns Tool toolbox configuration (internal or user-specified).
-   *
-   * Merges internal and user-defined toolbox configs based on the following rules:
-   *
-   * - If both internal and user-defined toolbox configs are arrays their items are merged.
-   * Length of the second one is kept.
-   *
-   * - If both are objects their properties are merged.
-   *
-   * - If one is an object and another is an array than internal config is replaced with user-defined
-   * config. This is made to allow user to override default tool's toolbox representation (single/multiple entries)
+   * Returns Tool toolbox configuration (internal or user-specified)
    */
-  public get toolbox(): ToolboxConfigEntry[] | undefined {
+  public get toolbox(): ToolboxConfig {
     const toolToolboxSettings = this.constructable[InternalBlockToolSettings.Toolbox] as ToolboxConfig;
     const userToolboxSettings = this.config[UserSettings.Toolbox];
 
     if (_.isEmpty(toolToolboxSettings)) {
       return;
     }
-    if (userToolboxSettings === false) {
+
+    if ((userToolboxSettings ?? toolToolboxSettings) === false) {
       return;
     }
-    /**
-     * Return tool's toolbox settings if user settings are not defined
-     */
-    if (!userToolboxSettings) {
-      return Array.isArray(toolToolboxSettings) ? toolToolboxSettings : [ toolToolboxSettings ];
-    }
 
-    /**
-     * Otherwise merge user settings with tool's settings
-     */
-    if (Array.isArray(toolToolboxSettings)) {
-      if (Array.isArray(userToolboxSettings)) {
-        return userToolboxSettings.map((item, i) => {
-          const toolToolboxEntry = toolToolboxSettings[i];
-
-          if (toolToolboxEntry) {
-            return {
-              ...toolToolboxEntry,
-              ...item,
-            };
-          }
-
-          return item;
-        });
-      }
-
-      return [ userToolboxSettings ];
-    } else {
-      if (Array.isArray(userToolboxSettings)) {
-        return userToolboxSettings;
-      }
-
-      return [
-        {
-          ...toolToolboxSettings,
-          ...userToolboxSettings,
-        },
-      ];
-    }
+    return Object.assign({}, toolToolboxSettings, userToolboxSettings);
   }
 
   /**
    * Returns Tool conversion configuration
    */
-  public get conversionConfig(): ConversionConfig | undefined {
+  public get conversionConfig(): ConversionConfig {
     return this.constructable[InternalBlockToolSettings.ConversionConfig];
   }
 
@@ -158,7 +112,7 @@ export default class BlockTool extends BaseTool<IBlockTool> {
    * Returns Tool paste configuration
    */
   public get pasteConfig(): PasteConfig {
-    return this.constructable[InternalBlockToolSettings.PasteConfig] ?? {};
+    return this.constructable[InternalBlockToolSettings.PasteConfig] || {};
   }
 
   /**

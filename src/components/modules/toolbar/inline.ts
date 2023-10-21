@@ -2,16 +2,15 @@ import Module from '../../__module';
 import $ from '../../dom';
 import SelectionUtils from '../../selection';
 import * as _ from '../../utils';
-import { InlineTool as IInlineTool } from '../../../../types';
+import { InlineTool as IInlineTool, EditorConfig } from '../../../../types';
 import Flipper from '../../flipper';
 import I18n from '../../i18n';
 import { I18nInternalNS } from '../../i18n/namespace-internal';
 import Shortcuts from '../../utils/shortcuts';
-import * as tooltip from '../../utils/tooltip';
+import Tooltip from '../../utils/tooltip';
 import { ModuleConfig } from '../../../types-internal/module-config';
 import InlineTool from '../../tools/inline';
 import { CommonInternalSettings } from '../../tools/base';
-import { IconChevronDown } from '@codexteam/icons';
 
 /**
  * Inline Toolbar elements
@@ -52,7 +51,6 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
     inputField: 'cdx-input',
     focusedButton: 'ce-inline-tool--focused',
     conversionToggler: 'ce-inline-toolbar__dropdown',
-    conversionTogglerArrow: 'ce-inline-toolbar__dropdown-arrow',
     conversionTogglerHidden: 'ce-inline-toolbar__dropdown--hidden',
     conversionTogglerContent: 'ce-inline-toolbar__dropdown-content',
     togglerAndButtonsWrapper: 'ce-inline-toolbar__toggler-and-button-wrapper',
@@ -68,8 +66,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
   /**
    * Margin above/below the Toolbar
    */
-  // eslint-disable-next-line @typescript-eslint/no-magic-numbers
-  private readonly toolbarVerticalMargin: number = _.isMobileScreen() ? 20 : 6;
+  private readonly toolbarVerticalMargin: number = 5;
 
   /**
    * TODO: Get rid of this
@@ -98,16 +95,21 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
   private flipper: Flipper = null;
 
   /**
+   * Tooltip utility Instance
+   */
+  private tooltip: Tooltip;
+  /**
    * @class
-   * @param moduleConfiguration - Module Configuration
-   * @param moduleConfiguration.config - Editor's config
-   * @param moduleConfiguration.eventsDispatcher - Editor's event dispatcher
+   * @param {object} moduleConfiguration - Module Configuration
+   * @param {EditorConfig} moduleConfiguration.config - Editor's config
+   * @param {EventsDispatcher} moduleConfiguration.eventsDispatcher - Editor's event dispatcher
    */
   constructor({ config, eventsDispatcher }: ModuleConfig) {
     super({
       config,
       eventsDispatcher,
     });
+    this.tooltip = new Tooltip();
   }
 
   /**
@@ -117,9 +119,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
    */
   public toggleReadOnly(readOnlyEnabled: boolean): void {
     if (!readOnlyEnabled) {
-      window.requestIdleCallback(() => {
-        this.make();
-      }, { timeout: 2000 });
+      this.make();
     } else {
       this.destroy();
       this.Editor.ConversionToolbar.destroy();
@@ -153,6 +153,52 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
   }
 
   /**
+   * Move Toolbar to the selected text
+   */
+  public move(): void {
+    const selectionRect = SelectionUtils.rect as DOMRect;
+    const wrapperOffset = this.Editor.UI.nodes.wrapper.getBoundingClientRect();
+    const newCoords = {
+      x: selectionRect.x - wrapperOffset.left,
+      y: selectionRect.y +
+        selectionRect.height -
+        // + window.scrollY
+        wrapperOffset.top +
+        this.toolbarVerticalMargin,
+    };
+
+    /**
+     * If we know selections width, place InlineToolbar to center
+     */
+    if (selectionRect.width) {
+      newCoords.x += Math.floor(selectionRect.width / 2);
+    }
+
+    /**
+     * Inline Toolbar has -50% translateX, so we need to check real coords to prevent overflowing
+     */
+    const realLeftCoord = newCoords.x - this.width / 2;
+    const realRightCoord = newCoords.x + this.width / 2;
+
+    /**
+     * By default, Inline Toolbar has top-corner at the center
+     * We are adding a modifiers for to move corner to the left or right
+     */
+    this.nodes.wrapper.classList.toggle(
+      this.CSS.inlineToolbarLeftOriented,
+      realLeftCoord < this.Editor.UI.contentRect.left
+    );
+
+    this.nodes.wrapper.classList.toggle(
+      this.CSS.inlineToolbarRightOriented,
+      realRightCoord > this.Editor.UI.contentRect.right
+    );
+
+    this.nodes.wrapper.style.left = Math.floor(newCoords.x) + 'px';
+    this.nodes.wrapper.style.top = Math.floor(newCoords.y) + 'px';
+  }
+
+  /**
    * Hides Inline Toolbar
    */
   public close(): void {
@@ -180,7 +226,6 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
       }
     });
 
-    this.reset();
     this.opened = false;
 
     this.flipper.deactivate();
@@ -235,7 +280,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
   /**
    * Check if node is contained by Inline Toolbar
    *
-   * @param {Node} node — node to check
+   * @param {Node} node — node to chcek
    */
   public containsNode(node: Node): boolean {
     return this.nodes.wrapper.contains(node);
@@ -254,6 +299,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
     }
 
     this.removeAllNodes();
+    this.tooltip.destroy();
   }
 
   /**
@@ -276,7 +322,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
       const isClickedOnActionsWrapper = (event.target as Element).closest(`.${this.CSS.actionsWrapper}`);
 
       // If click is on actions wrapper,
-      // do not prevent default behavior because actions might include interactive elements
+      // do not prevent default behaviour because actions might include interactive elements
       if (!isClickedOnActionsWrapper) {
         event.preventDefault();
       }
@@ -310,77 +356,14 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
 
     /**
      * Recalculate initial width with all buttons
-     * We use RIC to prevent forced layout during editor initialization to make it faster
      */
-    window.requestAnimationFrame(() => {
-      this.recalculateWidth();
-    });
+    this.recalculateWidth();
 
     /**
      * Allow to leaf buttons by arrows / tab
      * Buttons will be filled on opening
      */
     this.enableFlipper();
-  }
-
-  /**
-   * Move Toolbar to the selected text
-   */
-  private move(): void {
-    const selectionRect = SelectionUtils.rect as DOMRect;
-    const wrapperOffset = this.Editor.UI.nodes.wrapper.getBoundingClientRect();
-    const newCoords = {
-      x: selectionRect.x - wrapperOffset.left,
-      y: selectionRect.y +
-        selectionRect.height -
-        // + window.scrollY
-        wrapperOffset.top +
-        this.toolbarVerticalMargin,
-    };
-
-    /**
-     * If we know selections width, place InlineToolbar to center
-     */
-    if (selectionRect.width) {
-      newCoords.x += Math.floor(selectionRect.width / 2);
-    }
-
-
-    /**
-     * Inline Toolbar has -50% translateX, so we need to check real coords to prevent overflowing
-     */
-    const realLeftCoord = newCoords.x - this.width / 2;
-    const realRightCoord = newCoords.x + this.width / 2;
-
-    /**
-     * By default, Inline Toolbar has top-corner at the center
-     * We are adding a modifiers for to move corner to the left or right
-     */
-    this.nodes.wrapper.classList.toggle(
-      this.CSS.inlineToolbarLeftOriented,
-      realLeftCoord < this.Editor.UI.contentRect.left
-    );
-
-    this.nodes.wrapper.classList.toggle(
-      this.CSS.inlineToolbarRightOriented,
-      realRightCoord > this.Editor.UI.contentRect.right
-    );
-
-    this.nodes.wrapper.style.left = Math.floor(newCoords.x) + 'px';
-    this.nodes.wrapper.style.top = Math.floor(newCoords.y) + 'px';
-  }
-
-  /**
-   * Clear orientation classes and reset position
-   */
-  private reset(): void {
-    this.nodes.wrapper.classList.remove(
-      this.CSS.inlineToolbarLeftOriented,
-      this.CSS.inlineToolbarRightOriented
-    );
-
-    this.nodes.wrapper.style.left = '0';
-    this.nodes.wrapper.style.top = '0';
   }
 
   /**
@@ -445,12 +428,10 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
     this.nodes.conversionToggler = $.make('div', this.CSS.conversionToggler);
     this.nodes.conversionTogglerContent = $.make('div', this.CSS.conversionTogglerContent);
 
-    const iconWrapper = $.make('div', this.CSS.conversionTogglerArrow, {
-      innerHTML: IconChevronDown,
-    });
+    const icon = $.svg('toggler-down', 13, 13);
 
     this.nodes.conversionToggler.appendChild(this.nodes.conversionTogglerContent);
-    this.nodes.conversionToggler.appendChild(iconWrapper);
+    this.nodes.conversionToggler.appendChild(icon);
 
     this.nodes.togglerAndButtonsWrapper.appendChild(this.nodes.conversionToggler);
 
@@ -473,18 +454,16 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
       });
     });
 
-    if (_.isMobileScreen() === false ) {
-      tooltip.onHover(this.nodes.conversionToggler, I18n.ui(I18nInternalNS.ui.inlineToolbar.converter, 'Convert to'), {
-        placement: 'top',
-        hidingDelay: 100,
-      });
-    }
+    this.tooltip.onHover(this.nodes.conversionToggler, I18n.ui(I18nInternalNS.ui.inlineToolbar.converter, 'Convert to'), {
+      placement: 'top',
+      hidingDelay: 100,
+    });
   }
 
   /**
    * Changes Conversion Dropdown content for current block's Tool
    */
-  private async setConversionTogglerContent(): Promise<void> {
+  private setConversionTogglerContent(): void {
     const { BlockManager } = this.Editor;
     const { currentBlock } = BlockManager;
     const toolName = currentBlock.name;
@@ -501,7 +480,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
     /**
      * Get icon or title for dropdown
      */
-    const toolboxSettings = await currentBlock.getActiveToolboxEntry() || {};
+    const toolboxSettings = currentBlock.tool.toolbox || {};
 
     this.nodes.conversionTogglerContent.innerHTML =
       toolboxSettings.icon ||
@@ -602,12 +581,10 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
       }));
     }
 
-    if (_.isMobileScreen() === false ) {
-      tooltip.onHover(button, tooltipContent, {
-        placement: 'top',
-        hidingDelay: 100,
-      });
-    }
+    this.tooltip.onHover(button, tooltipContent, {
+      placement: 'top',
+      hidingDelay: 100,
+    });
 
     instance.checkState(SelectionUtils.get());
   }
@@ -687,15 +664,6 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
 
     tool.surround(range);
     this.checkToolsState();
-
-    /**
-     * If tool has "actions", so after click it will probably toggle them on.
-     * For example, the Inline Link Tool will show the URL-input.
-     * So we disable the Flipper for that case to allow Tool bind own Enter listener
-     */
-    if (tool.renderActions !== undefined) {
-      this.flipper.deactivate();
-    }
   }
 
   /**
@@ -730,10 +698,7 @@ export default class InlineToolbar extends Module<InlineToolbarNodes> {
   private enableFlipper(): void {
     this.flipper = new Flipper({
       focusedItemClass: this.CSS.focusedButton,
-      allowedKeys: [
-        _.keyCodes.ENTER,
-        _.keyCodes.TAB,
-      ],
+      allowArrows: false,
     });
   }
 }

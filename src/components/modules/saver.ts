@@ -16,6 +16,7 @@ declare const VERSION: string;
 
 /**
  * @classdesc This method reduces all Blocks asyncronically and calls Block's save method to extract data
+ *
  * @typedef {Saver} Saver
  * @property {Element} html - Editor HTML content
  * @property {string} json - Editor JSON output
@@ -27,11 +28,16 @@ export default class Saver extends Module {
    * @returns {OutputData}
    */
   public async save(): Promise<OutputData> {
-    const { BlockManager, Tools } = this.Editor;
+    const { BlockManager, Tools, ModificationsObserver } = this.Editor;
     const blocks = BlockManager.blocks,
         chainData = [];
 
     try {
+      /**
+       * Disable onChange callback on save to not to spam those events
+       */
+      ModificationsObserver.disable();
+
       blocks.forEach((block: Block) => {
         chainData.push(this.getSavedData(block));
       });
@@ -44,6 +50,8 @@ export default class Saver extends Module {
       return this.makeOutput(sanitizedData);
     } catch (e) {
       _.logLabeled(`Saving failed due to the Error %o`, 'error', e);
+    } finally {
+      ModificationsObserver.enable();
     }
   }
 
@@ -70,11 +78,26 @@ export default class Saver extends Module {
    * @returns {OutputData}
    */
   private makeOutput(allExtractedData): OutputData {
+    let totalTime = 0;
     const blocks = [];
 
-    allExtractedData.forEach(({ id, tool, data, tunes, isValid }) => {
-      if (!isValid) {
+    _.log('[Editor.js saving]:', 'groupCollapsed');
+
+    allExtractedData.forEach(({ id, tool, data, tunes, time, isValid }) => {
+      totalTime += time;
+
+      /**
+       * Capitalize Tool name
+       */
+      _.log(`${tool.charAt(0).toUpperCase() + tool.slice(1)}`, 'group');
+
+      if (isValid) {
+        /** Group process info */
+        _.log(data);
+        _.log(undefined, 'groupEnd');
+      } else {
         _.log(`Block «${tool}» skipped because saved data is invalid`);
+        _.log(undefined, 'groupEnd');
 
         return;
       }
@@ -97,6 +120,9 @@ export default class Saver extends Module {
 
       blocks.push(output);
     });
+
+    _.log('Total', 'log', totalTime);
+    _.log(undefined, 'groupEnd');
 
     return {
       time: +new Date(),

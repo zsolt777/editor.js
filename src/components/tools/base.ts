@@ -67,11 +67,11 @@ export enum CommonInternalSettings {
 }
 
 /**
- * Enum of Tool options provided by Block Tool
+ * Enum of Tool optoins provided by Block Tool
  */
 export enum InternalBlockToolSettings {
   /**
-   * Is line breaks enabled for Tool
+   * Is linebreaks enabled for Tool
    */
   IsEnabledLineBreaks = 'enableLineBreaks',
   /**
@@ -116,7 +116,7 @@ export enum InternalTuneSettings {
   IsTune = 'isTune',
 }
 
-export type ToolOptions = Omit<ToolSettings, 'class'>;
+export type ToolOptions = Omit<ToolSettings, 'class'>
 
 interface ConstructorOptions {
   name: string;
@@ -174,7 +174,8 @@ export default abstract class BaseTool<Type extends Tool = Tool> {
 
   /**
    * @class
-   * @param {ConstructorOptions} options - Constructor options
+   *
+   * @param {ConstructorOptions} - Constructor options
    */
   constructor({
     name,

@@ -56,7 +56,7 @@ Options that Tool can specify. All settings should be passed as static propertie
 
 | Name | Type | Default Value | Description |
 | -- | -- | -- | -- |
-| `toolbox` | _Object_ | `undefined` | Pass the `icon` and the `title` there to display this `Tool` in the Editor's `Toolbox` <br /> `icon` - HTML string with icon for the Toolbox <br /> `title` - title to be displayed at the Toolbox. <br /><br />May contain an array of `{icon, title, data}` to display the several variants of the tool, for example "Ordered list", "Unordered list". See details at [the documentation](https://editorjs.io/tools-api#toolbox) |
+| `toolbox` | _Object_ | `undefined` | Pass here `icon` and `title` to display this `Tool` in the Editor's `Toolbox` <br /> `icon` - HTML string with icon for Toolbox <br /> `title` - optional title to display in Toolbox |
 | `enableLineBreaks` | _Boolean_ | `false` | With this option, Editor.js won't handle Enter keydowns. Can be helpful for Tools like `<code>` where line breaks should be handled by default behaviour. |
 | `isInline` | _Boolean_ | `false` | Describes Tool as a [Tool for the Inline Toolbar](tools-inline.md) |
 | `isTune` | _Boolean_ | `false` | Describes Tool as a [Block Tune](block-tunes.md) |
@@ -151,7 +151,7 @@ To handle pasted HTML elements object returned from `pasteConfig` getter should 
 
 For correct work you MUST provide `onPaste` handler at least for `defaultBlock` Tool.
 
-#### Example
+> Example
 
 Header Tool can handle `H1`-`H6` tags using paste handling API
 
@@ -163,27 +163,7 @@ static get pasteConfig() {
 }
 ```
 
-**Note. Same tag can be handled by one (first specified) Tool only.**
-
-**Note. All attributes of pasted tag will be removed. To leave some attribute, you should explicitly specify them. Se below**
-
-Let's suppose you want to leave the 'src' attribute when handle pasting of the `img` tags. Your config should look like this:
-
-```javascript
-static get pasteConfig() {
-  return {
-    tags: [
-      {
-        img: {
-          src: true
-        }
-      }
-    ],
-  }
-}
-```
-
-[Read more](https://editorjs.io/sanitizer) about the sanitizing configuration.
+> Same tag can be handled by one (first specified) Tool only.
 
 ### RegExp patterns handling
 
@@ -410,7 +390,7 @@ static get sanitize() {
 
 Editor.js has a Conversion Toolbar that allows user to convert one Block to another.
 
-![](assets/6c1f708b-a30c-4ffd-a427-5b59a1a472e0.jpg)
+![](https://capella.pics/6c1f708b-a30c-4ffd-a427-5b59a1a472e0.jpg)
 
 1. You can add ability to your Tool to be converted. Specify «export» property of `conversionConfig`.
 2. You can add ability to convert other Tools to your Tool. Specify «import» property of `conversionConfig`.
